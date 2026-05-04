@@ -60,7 +60,7 @@ public final class AnalysisResult {
                 .append('\n');
         sb.append('\n');
         sb.append("Halstead's Approach:\n");
-        long n1 = ast.halsteadDistinctOperators;
+        long n1 = ast.halsteadDistinctOperator;
         long n2 = ast.halsteadDistinctOperands;
         long N1 = ast.halsteadTotalOperators;
         long N2 = ast.halsteadTotalOperands;
