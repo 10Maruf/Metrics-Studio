@@ -1,4 +1,4 @@
-# Metrics Studio
+# Metrics-Studio
 
 Desktop app to analyze Java project metrics (LOC/CLOC/NCLOC/etc.).
 
