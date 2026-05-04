@@ -27,6 +27,8 @@ import java.util.Set;
 
 public final class AstMetricsCalculator {
 
+    private static final String DEFAULT_PACKAGE = "(default)";
+
     public AstMetrics compute(List<Path> javaFiles) throws IOException {
         ParserConfiguration config = new ParserConfiguration();
         config.setStoreTokens(true);
@@ -46,6 +48,8 @@ public final class AstMetricsCalculator {
 
         HalsteadAccumulator halstead = new HalsteadAccumulator();
 
+        Set<String> uniqueIoParams = new HashSet<>();
+
         int designPatternCount = 0;
         int parseFailures = 0;
 
@@ -62,7 +66,7 @@ public final class AstMetricsCalculator {
 
             CompilationUnit cu = maybeCu.get();
 
-            cu.getPackageDeclaration().ifPresent(pd -> packages.add(pd.getNameAsString()));
+            packages.add(cu.getPackageDeclaration().map(pd -> pd.getNameAsString()).orElse(DEFAULT_PACKAGE));
 
             Set<Integer> executableLinesInFile = new HashSet<>();
             cu.findAll(Statement.class).forEach(stmt -> addRangeLines(stmt.getRange(), executableLinesInFile));
@@ -78,6 +82,10 @@ public final class AstMetricsCalculator {
                 int typeMethods = type.getMethods().size();
                 int constructors = type.getConstructors().size();
                 methodCount += typeMethods + constructors;
+
+                type.getMethods().forEach(m -> m.getParameters().forEach(p -> uniqueIoParams.add(p.getNameAsString())));
+                type.getConstructors()
+                        .forEach(c -> c.getParameters().forEach(p -> uniqueIoParams.add(p.getNameAsString())));
 
                 if (!type.isInterface()) {
                     methodCountForAvg += typeMethods + constructors;
@@ -95,7 +103,7 @@ public final class AstMetricsCalculator {
         }
 
         int packageCount = packages.size();
-        int subPackageCount = packageCount;
+        int subPackageCount = computeSubPackageCount(packages);
 
         double avgMethods = (classCountForAvg == 0) ? 0.0 : ((double) methodCountForAvg / (double) classCountForAvg);
         long avgCharsPerClass = (classCountForAvg == 0) ? 0L : (totalClassChars / classCountForAvg);
@@ -113,8 +121,61 @@ public final class AstMetricsCalculator {
                 halstead.distinctOperands.size(),
                 halstead.totalOperators,
                 halstead.totalOperands,
+                uniqueIoParams.size(),
                 designPatternCount,
                 parseFailures);
+    }
+
+    private static int computeSubPackageCount(Set<String> allPackages) {
+        if (allPackages.isEmpty()) {
+            return 0;
+        }
+
+        Set<String> nonDefault = new HashSet<>(allPackages);
+        nonDefault.remove(DEFAULT_PACKAGE);
+        if (nonDefault.isEmpty()) {
+            return 0;
+        }
+
+        String base = longestCommonPackagePrefix(nonDefault);
+        if (base.isEmpty()) {
+            // Fallback: treat one package as "base" and everything else as sub-packages.
+            return Math.max(0, nonDefault.size() - 1);
+        }
+
+        int sub = nonDefault.size();
+        if (nonDefault.contains(base)) {
+            sub -= 1;
+        }
+        return Math.max(0, sub);
+    }
+
+    private static String longestCommonPackagePrefix(Set<String> packages) {
+        String[] prefixParts = null;
+        for (String pkg : packages) {
+            String[] parts = pkg.split("\\.");
+            if (prefixParts == null) {
+                prefixParts = parts;
+                continue;
+            }
+
+            int common = 0;
+            int max = Math.min(prefixParts.length, parts.length);
+            while (common < max && prefixParts[common].equals(parts[common])) {
+                common++;
+            }
+            if (common == 0) {
+                return "";
+            }
+            String[] newPrefix = new String[common];
+            System.arraycopy(prefixParts, 0, newPrefix, 0, common);
+            prefixParts = newPrefix;
+        }
+
+        if (prefixParts == null || prefixParts.length == 0) {
+            return "";
+        }
+        return String.join(".", prefixParts);
     }
 
     private static void addRangeLines(Optional<Range> maybeRange, Set<Integer> lines) {
