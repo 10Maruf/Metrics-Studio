@@ -17,6 +17,15 @@ public final class ProjectAnalyzer {
         TextMetricsCalculator calc = new TextMetricsCalculator();
         TextMetrics textMetrics = calc.compute(javaFiles);
 
+        AstMetricsCalculator astCalc = new AstMetricsCalculator();
+        AstMetrics astMetrics = astCalc.compute(javaFiles);
+
+        double commentDensity = 0.0;
+        long nonBlankLoc = Math.max(0, textMetrics.loc - textMetrics.blankLoc);
+        if (nonBlankLoc > 0) {
+            commentDensity = (double) textMetrics.cloc / (double) nonBlankLoc;
+        }
+
         return new AnalysisResult(
                 projectRoot,
                 javaFiles.size(),
@@ -24,6 +33,8 @@ public final class ProjectAnalyzer {
                 textMetrics.totalCharacters,
                 textMetrics.loc,
                 textMetrics.blankLoc,
-                textMetrics.cloc);
+                textMetrics.cloc,
+                commentDensity,
+                astMetrics);
     }
 }
