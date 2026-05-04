@@ -1,6 +1,5 @@
 package com.metricsstudio.analysis;
 
-import com.github.javaparser.GeneratedJavaParserConstants;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
@@ -231,14 +230,13 @@ public final class AstMetricsCalculator {
 
         void accumulate(TokenRange tokenRange) {
             for (JavaToken token : tokenRange) {
-                if (token.getCategory() == JavaToken.Category.WHITESPACE)
-                    continue;
-                if (token.getCategory() == JavaToken.Category.COMMENT)
-                    continue;
-
-                int kind = token.getKind();
                 String text = token.getText();
-                if (isOperandKind(kind)) {
+                JavaToken.Category category = token.getCategory();
+                if (category.isWhitespaceOrComment()) {
+                    continue;
+                }
+
+                if (category.isIdentifier() || category.isLiteral()) {
                     totalOperands++;
                     distinctOperands.add(text);
                 } else {
@@ -246,17 +244,6 @@ public final class AstMetricsCalculator {
                     distinctOperators.add(text);
                 }
             }
-        }
-
-        private static boolean isOperandKind(int kind) {
-            return kind == GeneratedJavaParserConstants.IDENTIFIER
-                    || kind == GeneratedJavaParserConstants.INTEGER_LITERAL
-                    || kind == GeneratedJavaParserConstants.FLOATING_POINT_LITERAL
-                    || kind == GeneratedJavaParserConstants.STRING_LITERAL
-                    || kind == GeneratedJavaParserConstants.CHARACTER_LITERAL
-                    || kind == GeneratedJavaParserConstants.TRUE
-                    || kind == GeneratedJavaParserConstants.FALSE
-                    || kind == GeneratedJavaParserConstants.NULL;
         }
     }
 }
