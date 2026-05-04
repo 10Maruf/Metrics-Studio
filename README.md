@@ -6,6 +6,14 @@ Desktop app to analyze Java project metrics (LOC/CLOC/NCLOC/etc.).
 
 - `mvn javafx:run`
 
+## Build JAR
+
+- `mvn -q clean package -DskipTests`
+- Output JAR: `target/metrics-studio-0.1.0.jar`
+- Dependencies: `target/libs/`
+- Run (Windows PowerShell):
+  - `java --module-path target/libs --add-modules javafx.controls,javafx.graphics -cp "target/metrics-studio-0.1.0.jar;target/libs/*" com.metricsstudio.MainApp`
+
 ## Current behavior (MVP)
 
 - Select a project folder
