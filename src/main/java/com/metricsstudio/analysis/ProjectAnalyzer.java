@@ -44,12 +44,18 @@ public final class ProjectAnalyzer {
         TextMetricsCalculator calc = new TextMetricsCalculator();
         TextMetrics textMetrics = calc.compute(allFiles);
 
-        AstMetrics astMetrics;
-        if (javaFiles.isEmpty()) {
-            astMetrics = AstMetrics.empty();
-        } else {
+        AstMetrics astMetrics = AstMetrics.empty();
+        AstMetricsSource astSource = AstMetricsSource.NONE;
+
+        if (!javaFiles.isEmpty()) {
             AstMetricsCalculator astCalc = new AstMetricsCalculator();
             astMetrics = astCalc.compute(javaFiles);
+            astSource = AstMetricsSource.JAVA_PARSER;
+        } else if (!webFiles.isEmpty()) {
+            // Heuristic token-based metrics for web code.
+            WebHeuristicMetricsCalculator webCalc = new WebHeuristicMetricsCalculator();
+            astMetrics = webCalc.compute(webFiles);
+            astSource = AstMetricsSource.WEB_HEURISTIC;
         }
 
         double commentDensity = 0.0;
@@ -61,6 +67,7 @@ public final class ProjectAnalyzer {
         return new AnalysisResult(
                 projectRoot,
                 profile,
+                astSource,
                 allFiles.size(),
                 javaFiles.size(),
                 webFiles.size(),

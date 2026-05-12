@@ -1,6 +1,7 @@
 package com.metricsstudio;
 
 import com.metricsstudio.analysis.AnalysisResult;
+import com.metricsstudio.analysis.AstMetricsSource;
 import com.metricsstudio.analysis.CocomoBasic;
 import com.metricsstudio.analysis.ProjectAnalyzer;
 import com.metricsstudio.analysis.ProjectProfile;
@@ -96,6 +97,9 @@ public class MainApp extends Application {
             clear();
             summaryText.setText(r.toPrettyText());
 
+            boolean hasAst = r.astSource != null && r.astSource != AstMetricsSource.NONE;
+            String na = "N/A";
+
             long nonBlankLoc = Math.max(0, r.loc - r.blankLoc);
             lastNonBlankLoc = nonBlankLoc;
             addRow(codeSizeGrid, 0, "LOC", String.valueOf(r.loc));
@@ -103,16 +107,41 @@ public class MainApp extends Application {
             addRow(codeSizeGrid, 2, "CLOC", String.valueOf(r.cloc));
             addRow(codeSizeGrid, 3, "NCLOC", String.valueOf(r.ncloc));
             addRow(codeSizeGrid, 4, "Non-blank LOC", String.valueOf(nonBlankLoc));
-            addRow(codeSizeGrid, 5, "Executable LOC", String.valueOf(r.ast.executableLoc));
+            addRow(codeSizeGrid, 5, "Executable LOC", hasAst ? String.valueOf(r.ast.executableLoc) : na);
             addRow(codeSizeGrid, 6, "Comment density", String.format(Locale.ROOT, "%.4f", r.commentDensity));
 
-            addRow(designSizeGrid, 0, "Sub-packages", String.valueOf(r.ast.subPackageCount));
-            addRow(designSizeGrid, 1, "Classes", String.valueOf(r.ast.classCount));
-            addRow(designSizeGrid, 2, "Interfaces", String.valueOf(r.ast.interfaceCount));
-            addRow(designSizeGrid, 3, "Design patterns (heuristic)", String.valueOf(r.ast.designPatternCount));
-            addRow(designSizeGrid, 4, "Methods", String.valueOf(r.ast.methodCount));
+            addRow(designSizeGrid, 0, "Sub-packages", hasAst ? String.valueOf(r.ast.subPackageCount) : na);
+            addRow(designSizeGrid, 1, "Classes", hasAst ? String.valueOf(r.ast.classCount) : na);
+            addRow(designSizeGrid, 2, "Interfaces", hasAst ? String.valueOf(r.ast.interfaceCount) : na);
+            addRow(designSizeGrid, 3, "Design patterns (heuristic)",
+                    hasAst ? String.valueOf(r.ast.designPatternCount) : na);
+            addRow(designSizeGrid, 4, "Methods", hasAst ? String.valueOf(r.ast.methodCount) : na);
             addRow(designSizeGrid, 5, "Avg methods per class",
-                    String.format(Locale.ROOT, "%.2f", r.ast.averageMethodsPerClass));
+                    hasAst ? String.format(Locale.ROOT, "%.2f", r.ast.averageMethodsPerClass) : na);
+
+            if (!hasAst) {
+                addRow(halsteadGrid, 0, "μ1 (unique operators)", na);
+                addRow(halsteadGrid, 1, "μ2 (unique operands)", na);
+                addRow(halsteadGrid, 2, "N1 (total operators)", na);
+                addRow(halsteadGrid, 3, "N2 (total operands)", na);
+                addRow(halsteadGrid, 4, "Length N = N1 + N2", na);
+                addRow(halsteadGrid, 5, "Vocabulary μ = μ1 + μ2", na);
+                addRow(halsteadGrid, 6, "Volume V = N×log2(μ)", na);
+                addRow(halsteadGrid, 7, "Estimated length", na);
+                addRow(halsteadGrid, 8, "n2* (approx param names)", na);
+                addRow(halsteadGrid, 9, "Potential volume V*", na);
+                addRow(halsteadGrid, 10, "Level L = V*/V", na);
+                addRow(halsteadGrid, 11, "Difficulty D = 1/L", na);
+                addRow(halsteadGrid, 12, "Estimated level L'", na);
+                addRow(halsteadGrid, 13, "Estimated difficulty D'", na);
+                addRow(halsteadGrid, 14, "Effort E = V/L'", na);
+
+                suppressCocomoUpdates = true;
+                cocomoKloc.setText(String.format(Locale.ROOT, "%.3f", nonBlankLoc / 1000.0));
+                suppressCocomoUpdates = false;
+                updateCocomoGrid();
+                return;
+            }
 
             long n1 = r.ast.halsteadDistinctOperator;
             long n2 = r.ast.halsteadDistinctOperands;

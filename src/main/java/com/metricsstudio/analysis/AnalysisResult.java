@@ -7,6 +7,8 @@ public final class AnalysisResult {
         public final Path rootPath;
         public final ProjectProfile profile;
 
+        public final AstMetricsSource astSource;
+
         public final int analyzedFileCount;
         public final int javaFileCount;
         public final int webFileCount;
@@ -26,6 +28,7 @@ public final class AnalysisResult {
         public AnalysisResult(
                         Path rootPath,
                         ProjectProfile profile,
+                        AstMetricsSource astSource,
                         int analyzedFileCount,
                         int javaFileCount,
                         int webFileCount,
@@ -38,6 +41,7 @@ public final class AnalysisResult {
                         AstMetrics ast) {
                 this.rootPath = Objects.requireNonNull(rootPath, "rootPath");
                 this.profile = Objects.requireNonNull(profile, "profile");
+                this.astSource = Objects.requireNonNull(astSource, "astSource");
                 this.analyzedFileCount = Math.max(0, analyzedFileCount);
                 this.javaFileCount = javaFileCount;
                 this.webFileCount = webFileCount;
@@ -60,6 +64,7 @@ public final class AnalysisResult {
                         sb.append("- Java: ").append(javaFileCount).append('\n');
                         sb.append("- Web: ").append(webFileCount).append('\n');
                 }
+                boolean hasAst = astSource != AstMetricsSource.NONE;
                 sb.append('\n');
                 sb.append("Determining Code Size:\n");
                 sb.append("- LOC: ").append(loc).append('\n');
@@ -70,12 +75,37 @@ public final class AnalysisResult {
                 sb.append("- Non-blank LOC: ").append(nonBlankLoc).append('\n');
                 sb.append("  (Non-blank LOC = NCLOC + CLOC = ").append(ncloc).append(" + ").append(cloc)
                                 .append(")\n");
-                sb.append("- Executable LOC: ").append(ast.executableLoc).append('\n');
+                sb.append("- Executable LOC: ")
+                                .append(hasAst ? String.valueOf(ast.executableLoc) : "N/A")
+                                .append('\n');
                 sb.append("- Density of comments: ")
                                 .append(String.format(java.util.Locale.ROOT, "%.4f", commentDensity))
                                 .append('\n');
                 sb.append('\n');
                 sb.append("Halstead's Approach:\n");
+
+                if (!hasAst) {
+                        sb.append("- N/A (no AST/token metrics available)\n");
+                        sb.append('\n');
+
+                        sb.append("Storage & text:\n");
+                        sb.append("- Bytes: ").append(totalBytes).append('\n');
+                        sb.append("- Characters: ").append(totalCharacters).append('\n');
+                        sb.append("- Avg characters per class: N/A\n");
+                        sb.append('\n');
+
+                        sb.append("Determining Design Size:\n");
+                        sb.append("- Sub-packages: N/A\n");
+                        sb.append("- Classes: N/A\n");
+                        sb.append("- Interfaces: N/A\n");
+                        sb.append("- Design patterns: N/A\n");
+                        sb.append("- Methods: N/A\n");
+                        sb.append("- Avg methods per class: N/A\n");
+                        return sb.toString();
+                }
+
+                sb.append("- Source: ").append(astSource.displayName).append('\n');
+
                 long n1 = ast.halsteadDistinctOperator;
                 long n2 = ast.halsteadDistinctOperands;
                 long N1 = ast.halsteadTotalOperators;

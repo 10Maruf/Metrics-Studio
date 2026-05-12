@@ -1,5 +1,9 @@
+com\metricsstudio\analysis\AstMetricsSource.class
+com\metricsstudio\analysis\WebHeuristicMetricsCalculator$Halstead.class
+com\metricsstudio\analysis\WebHeuristicMetricsCalculator$Lang.class
 com\metricsstudio\text\TextMetricsCalculator$LineMetrics.class
 com\metricsstudio\analysis\CocomoBasic$Estimate.class
+com\metricsstudio\analysis\WebHeuristicMetricsCalculator.class
 com\metricsstudio\analysis\AstMetricsCalculator.class
 com\metricsstudio\text\TextMetricsCalculator.class
 com\metricsstudio\MainApp.class
@@ -12,6 +16,7 @@ com\metricsstudio\analysis\AstMetrics.class
 com\metricsstudio\analysis\CocomoBasic$Mode.class
 com\metricsstudio\text\TextMetrics.class
 com\metricsstudio\analysis\AnalysisResult.class
+com\metricsstudio\analysis\WebHeuristicMetricsCalculator$Counts.class
 com\metricsstudio\MainApp$ResultTabs.class
 com\metricsstudio\analysis\CocomoBasic.class
 com\metricsstudio\text\TextMetricsCalculator$SingleQuoteMode.class
