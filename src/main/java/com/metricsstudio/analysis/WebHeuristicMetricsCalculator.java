@@ -19,6 +19,24 @@ import java.util.regex.Pattern;
  */
 public final class WebHeuristicMetricsCalculator {
 
+    private static final Pattern PHP_NAMESPACE = Pattern
+            .compile("(?m)^\\s*namespace\\s+([A-Za-z_\\\\][A-Za-z0-9_\\\\]*)\\s*;");
+
+    private static final Pattern PHP_CLASS = Pattern.compile("\\bclass\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
+    private static final Pattern PHP_INTERFACE = Pattern.compile("\\binterface\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
+    private static final Pattern PHP_METHOD_NAMED = Pattern.compile("\\bfunction\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(");
+
+    private static final Pattern JS_CLASS = Pattern.compile("\\bclass\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\b");
+    private static final Pattern JS_INTERFACE = Pattern.compile("\\binterface\\s+([A-Za-z_$][A-Za-z0-9_$]*)\\b");
+    private static final Pattern JS_FUNCTION = Pattern.compile("\\bfunction\\b");
+    // Count arrow function definitions, avoid counting type arrows like "() =>
+    // void" by requiring assignment.
+    private static final Pattern JS_ARROW_DEF = Pattern.compile(
+            "(?m)\\b[A-Za-z_$][A-Za-z0-9_$]*\\s*=\\s*(?:async\\s*)?(?:\\([^\\)]*\\)|[A-Za-z_$][A-Za-z0-9_$]*)\\s*=>");
+
+    private static final Pattern JS_CLASS_METHOD_DECL = Pattern.compile(
+            "^\\s*(?:(?:public|private|protected|static|async|get|set|readonly)\\s+)*(?!if\\b|for\\b|while\\b|switch\\b|catch\\b)([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\(");
+
     private static final class Halstead {
         final Set<String> distinctOperators = new HashSet<>();
         final Set<String> distinctOperands = new HashSet<>();
@@ -59,6 +77,12 @@ public final class WebHeuristicMetricsCalculator {
         int interfaceCount = 0;
         int methodCount = 0;
         long executableLoc = 0;
+        long totalClassChars = 0;
+        int classCountForAvgChars = 0;
+
+        int designPatternCount = 0;
+
+        Set<String> packages = new HashSet<>();
 
         Halstead halstead = new Halstead();
 
@@ -66,33 +90,288 @@ public final class WebHeuristicMetricsCalculator {
             String content = Files.readString(file, StandardCharsets.UTF_8);
             String sanitized = sanitizeForTokenization(content, languageFor(file));
 
+            packages.addAll(extractPackages(file, sanitized, codeFiles));
+
             Counts counts = countDesignTokens(sanitized, file);
             classCount += counts.classCount;
             interfaceCount += counts.interfaceCount;
             methodCount += counts.methodCount;
             executableLoc += counts.executableLoc;
 
+            List<ClassBlock> blocks = findClassBlocks(sanitized, file);
+            for (ClassBlock b : blocks) {
+                classCountForAvgChars++;
+                totalClassChars += computeCharLength(content, b.startIndexInclusive, b.endIndexInclusive);
+                if (languageFor(file) == Lang.JS_TS) {
+                    // JS/TS: count class methods (not counted by 'function' keyword).
+                    methodCount += countTopLevelJsMethods(
+                            sanitized.substring(b.startIndexInclusive, b.endIndexInclusive + 1));
+                }
+                if (looksLikeSingleton(sanitized.substring(b.startIndexInclusive, b.endIndexInclusive + 1), b.className,
+                        languageFor(file))) {
+                    designPatternCount++;
+                }
+            }
+
             accumulateHalsteadTokens(sanitized, file, halstead);
         }
 
+        int packageCount = packages.isEmpty() ? 0 : packages.size();
+        int subPackageCount = computeSubPackageCount(packages);
+
         double avgMethods = classCount == 0 ? 0.0 : ((double) methodCount / (double) classCount);
+        long avgCharsPerClass = classCountForAvgChars == 0 ? 0L : (totalClassChars / classCountForAvgChars);
 
         return new AstMetrics(
-                0,
-                0,
+                packageCount,
+                subPackageCount,
                 classCount,
                 interfaceCount,
                 methodCount,
                 avgMethods,
                 executableLoc,
-                0L,
+                avgCharsPerClass,
                 halstead.distinctOperators.size(),
                 halstead.distinctOperands.size(),
                 halstead.totalOperators,
                 halstead.totalOperands,
                 0,
-                0,
+                designPatternCount,
                 0);
+    }
+
+    private static final class ClassBlock {
+        final String className;
+        final int startIndexInclusive;
+        final int endIndexInclusive;
+
+        ClassBlock(String className, int startIndexInclusive, int endIndexInclusive) {
+            this.className = className;
+            this.startIndexInclusive = startIndexInclusive;
+            this.endIndexInclusive = endIndexInclusive;
+        }
+    }
+
+    private static long computeCharLength(String content, int startInclusive, int endInclusive) {
+        if (content == null)
+            return 0;
+        int start = Math.max(0, startInclusive);
+        int end = Math.min(content.length() - 1, endInclusive);
+        if (end < start)
+            return 0;
+        return (long) (end - start + 1);
+    }
+
+    private static List<ClassBlock> findClassBlocks(String sanitized, Path file) {
+        List<ClassBlock> blocks = new ArrayList<>();
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        Pattern classPattern = (name.endsWith(".php") || name.endsWith(".blade.php")) ? PHP_CLASS : JS_CLASS;
+
+        Matcher m = classPattern.matcher(sanitized);
+        while (m.find()) {
+            String className = m.group(1);
+            int afterDecl = m.end();
+
+            int open = indexOfChar(sanitized, '{', afterDecl);
+            if (open < 0)
+                continue;
+            int close = findMatchingBrace(sanitized, open);
+            if (close < 0)
+                continue;
+            blocks.add(new ClassBlock(className, open, close));
+        }
+        return blocks;
+    }
+
+    private static int indexOfChar(String s, char ch, int start) {
+        int i = Math.max(0, start);
+        while (i < s.length()) {
+            if (s.charAt(i) == ch)
+                return i;
+            i++;
+        }
+        return -1;
+    }
+
+    private static int findMatchingBrace(String sanitized, int openIndex) {
+        int depth = 0;
+        for (int i = openIndex; i < sanitized.length(); i++) {
+            char c = sanitized.charAt(i);
+            if (c == '{') {
+                depth++;
+            } else if (c == '}') {
+                depth--;
+                if (depth == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    private static int countTopLevelJsMethods(String classBlockSanitized) {
+        if (classBlockSanitized == null || classBlockSanitized.isBlank()) {
+            return 0;
+        }
+
+        int depth = 0;
+        int count = 0;
+        String[] lines = classBlockSanitized.split("\\R", -1);
+        for (String line : lines) {
+            int depthAtLineStart = depth;
+            if (depthAtLineStart == 1) {
+                Matcher m = JS_CLASS_METHOD_DECL.matcher(line);
+                if (m.find()) {
+                    count++;
+                }
+            }
+            for (int i = 0; i < line.length(); i++) {
+                char c = line.charAt(i);
+                if (c == '{') {
+                    depth++;
+                } else if (c == '}') {
+                    depth--;
+                }
+            }
+        }
+        return Math.max(0, count);
+    }
+
+    private static boolean looksLikeSingleton(String classBodySanitized, String className, Lang lang) {
+        if (classBodySanitized == null)
+            return false;
+        String s = classBodySanitized;
+
+        if (lang == Lang.PHP) {
+            boolean hasStaticInstance = s.matches("(?s).*\\bstatic\\s+\\$instance\\b.*");
+            boolean hasGetInstance = s.matches("(?s).*\\bfunction\\s+getInstance\\b.*");
+            boolean constructsSelf = s.matches("(?s).*\\bnew\\s+(?:self|static)\\b.*");
+            return hasStaticInstance && hasGetInstance && constructsSelf;
+        }
+
+        // JS / TS heuristic
+        boolean hasStaticInstance = s.matches("(?s).*\\bstatic\\s+(?:#?instance|INSTANCE)\\b.*");
+        boolean hasGetInstance = s.matches("(?s).*\\bgetInstance\\s*\\(.*");
+        boolean constructsSelf = className != null && !className.isBlank()
+                && s.matches("(?s).*\\bnew\\s+" + Pattern.quote(className) + "\\b.*");
+        return hasStaticInstance && hasGetInstance && constructsSelf;
+    }
+
+    private static Set<String> extractPackages(Path file, String sanitized, List<Path> allCodeFiles) {
+        Set<String> pkgs = new HashSet<>();
+
+        // PHP namespaces.
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".php") || name.endsWith(".blade.php")) {
+            Matcher m = PHP_NAMESPACE.matcher(sanitized);
+            while (m.find()) {
+                String ns = m.group(1);
+                if (ns != null && !ns.isBlank()) {
+                    pkgs.add(normalizePackage(ns));
+                }
+            }
+        }
+
+        // Directory-based packages for all code.
+        Path base = commonAncestor(allCodeFiles);
+        if (base != null) {
+            Path parent = file.getParent();
+            if (parent != null) {
+                String rel = base.relativize(parent).toString().replace('\\', '/');
+                if (!rel.isBlank()) {
+                    pkgs.add(normalizePackage(rel));
+                }
+            }
+        }
+
+        return pkgs;
+    }
+
+    private static Path commonAncestor(List<Path> files) {
+        if (files == null || files.isEmpty()) {
+            return null;
+        }
+        Path base = files.get(0).toAbsolutePath().getParent();
+        if (base == null)
+            return null;
+
+        for (Path f : files) {
+            Path p = f.toAbsolutePath().getParent();
+            if (p == null)
+                continue;
+            while (base != null && !p.startsWith(base)) {
+                base = base.getParent();
+            }
+            if (base == null)
+                return null;
+        }
+        return base;
+    }
+
+    private static String normalizePackage(String raw) {
+        String s = raw.trim();
+        s = s.replace('\\', '.').replace('/', '.');
+        s = s.replaceAll("\\.+", ".");
+        if (s.startsWith("."))
+            s = s.substring(1);
+        if (s.endsWith("."))
+            s = s.substring(0, s.length() - 1);
+        return s;
+    }
+
+    private static int computeSubPackageCount(Set<String> allPackages) {
+        if (allPackages == null || allPackages.isEmpty()) {
+            return 0;
+        }
+
+        Set<String> normalized = new HashSet<>();
+        for (String p : allPackages) {
+            if (p != null && !p.isBlank()) {
+                normalized.add(p);
+            }
+        }
+        if (normalized.isEmpty()) {
+            return 0;
+        }
+
+        String base = longestCommonPackagePrefix(normalized);
+        if (base.isEmpty()) {
+            return Math.max(0, normalized.size() - 1);
+        }
+
+        int sub = normalized.size();
+        if (normalized.contains(base)) {
+            sub -= 1;
+        }
+        return Math.max(0, sub);
+    }
+
+    private static String longestCommonPackagePrefix(Set<String> packages) {
+        String[] prefixParts = null;
+        for (String pkg : packages) {
+            String[] parts = pkg.split("\\.");
+            if (prefixParts == null) {
+                prefixParts = parts;
+                continue;
+            }
+
+            int common = 0;
+            int max = Math.min(prefixParts.length, parts.length);
+            while (common < max && prefixParts[common].equals(parts[common])) {
+                common++;
+            }
+            if (common == 0) {
+                return "";
+            }
+            String[] newPrefix = new String[common];
+            System.arraycopy(prefixParts, 0, newPrefix, 0, common);
+            prefixParts = newPrefix;
+        }
+
+        if (prefixParts == null || prefixParts.length == 0) {
+            return "";
+        }
+        return String.join(".", prefixParts);
     }
 
     private static final class Counts {
@@ -117,16 +396,18 @@ public final class WebHeuristicMetricsCalculator {
         int methodCount = 0;
 
         if (name.endsWith(".php") || name.endsWith(".blade.php")) {
-            classCount = countRegex(sanitized, Pattern.compile("\\bclass\\s+[A-Za-z_][A-Za-z0-9_]*\\b"));
-            interfaceCount = countRegex(sanitized, Pattern.compile("\\binterface\\s+[A-Za-z_][A-Za-z0-9_]*\\b"));
-            methodCount = countRegex(sanitized, Pattern.compile("\\bfunction\\b"));
+            classCount = countRegex(sanitized, PHP_CLASS);
+            interfaceCount = countRegex(sanitized, PHP_INTERFACE);
+            methodCount = countRegex(sanitized, PHP_METHOD_NAMED);
         } else {
             // JS / TS
-            classCount = countRegex(sanitized, Pattern.compile("\\bclass\\s+[A-Za-z_$][A-Za-z0-9_$]*\\b"));
-            interfaceCount = countRegex(sanitized, Pattern.compile("\\binterface\\s+[A-Za-z_$][A-Za-z0-9_$]*\\b"));
-            int fn = countRegex(sanitized, Pattern.compile("\\bfunction\\b"));
-            int arrows = countRegex(sanitized, Pattern.compile("=>"));
-            methodCount = fn + arrows;
+            classCount = countRegex(sanitized, JS_CLASS);
+            interfaceCount = countRegex(sanitized, JS_INTERFACE);
+            int fn = countRegex(sanitized, JS_FUNCTION);
+            int arrowDefs = countRegex(sanitized, JS_ARROW_DEF);
+            // Additional class methods will be counted by brace-based scan later; keep this
+            // as baseline.
+            methodCount = fn + arrowDefs;
         }
 
         long executableLoc = countExecutableLoc(sanitized);

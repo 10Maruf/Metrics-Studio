@@ -20,4 +20,5 @@ com\metricsstudio\analysis\WebHeuristicMetricsCalculator$Counts.class
 com\metricsstudio\MainApp$ResultTabs.class
 com\metricsstudio\analysis\CocomoBasic.class
 com\metricsstudio\text\TextMetricsCalculator$SingleQuoteMode.class
+com\metricsstudio\analysis\WebHeuristicMetricsCalculator$ClassBlock.class
 com\metricsstudio\text\TextMetricsCalculator$CommentSyntax.class

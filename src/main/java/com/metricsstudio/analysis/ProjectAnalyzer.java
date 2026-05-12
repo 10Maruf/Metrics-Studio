@@ -47,14 +47,26 @@ public final class ProjectAnalyzer {
         AstMetrics astMetrics = AstMetrics.empty();
         AstMetricsSource astSource = AstMetricsSource.NONE;
 
+        AstMetrics javaAst = AstMetrics.empty();
+        AstMetrics webAst = AstMetrics.empty();
+
         if (!javaFiles.isEmpty()) {
             AstMetricsCalculator astCalc = new AstMetricsCalculator();
-            astMetrics = astCalc.compute(javaFiles);
+            javaAst = astCalc.compute(javaFiles);
+        }
+        if (!webFiles.isEmpty()) {
+            WebHeuristicMetricsCalculator webCalc = new WebHeuristicMetricsCalculator();
+            webAst = webCalc.compute(webFiles);
+        }
+
+        if (!javaFiles.isEmpty() && !webFiles.isEmpty()) {
+            astMetrics = merge(javaAst, webAst);
+            astSource = AstMetricsSource.COMBINED;
+        } else if (!javaFiles.isEmpty()) {
+            astMetrics = javaAst;
             astSource = AstMetricsSource.JAVA_PARSER;
         } else if (!webFiles.isEmpty()) {
-            // Heuristic token-based metrics for web code.
-            WebHeuristicMetricsCalculator webCalc = new WebHeuristicMetricsCalculator();
-            astMetrics = webCalc.compute(webFiles);
+            astMetrics = webAst;
             astSource = AstMetricsSource.WEB_HEURISTIC;
         }
 
@@ -78,5 +90,44 @@ public final class ProjectAnalyzer {
                 textMetrics.cloc,
                 commentDensity,
                 astMetrics);
+    }
+
+    private static AstMetrics merge(AstMetrics a, AstMetrics b) {
+        if (a == null)
+            return b;
+        if (b == null)
+            return a;
+
+        int classCount = a.classCount + b.classCount;
+        int interfaceCount = a.interfaceCount + b.interfaceCount;
+        int methodCount = a.methodCount + b.methodCount;
+
+        double avgMethods = classCount == 0 ? 0.0 : ((double) methodCount / (double) classCount);
+
+        long totalCharsEstimate = ((long) a.averageCharactersPerClass * (long) Math.max(0, a.classCount))
+                + ((long) b.averageCharactersPerClass * (long) Math.max(0, b.classCount));
+        long avgChars = classCount == 0 ? 0L : (totalCharsEstimate / classCount);
+
+        // Distinct operator/operand union cannot be computed from counts alone; sum is
+        // an upper bound.
+        int distinctOps = a.halsteadDistinctOperator + b.halsteadDistinctOperator;
+        int distinctOperands = a.halsteadDistinctOperands + b.halsteadDistinctOperands;
+
+        return new AstMetrics(
+                a.packageCount + b.packageCount,
+                a.subPackageCount + b.subPackageCount,
+                classCount,
+                interfaceCount,
+                methodCount,
+                avgMethods,
+                a.executableLoc + b.executableLoc,
+                avgChars,
+                distinctOps,
+                distinctOperands,
+                a.halsteadTotalOperators + b.halsteadTotalOperators,
+                a.halsteadTotalOperands + b.halsteadTotalOperands,
+                a.halsteadUniqueIoParams + b.halsteadUniqueIoParams,
+                a.designPatternCount + b.designPatternCount,
+                a.parseFailureCount + b.parseFailureCount);
     }
 }
