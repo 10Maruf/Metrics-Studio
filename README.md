@@ -1,6 +1,6 @@
 # Metrics-Studio
 
-Desktop app to analyze Java project metrics (LOC/CLOC/NCLOC/etc.).
+Desktop app to analyze project metrics (Java + basic Web project support).
 
 ## Run
 
@@ -17,6 +17,7 @@ Desktop app to analyze Java project metrics (LOC/CLOC/NCLOC/etc.).
 ## Current behavior (MVP)
 
 - Select a project folder
-- Scans for `.java` files
+- Choose a profile: Java / Web (React+Laravel) / Mixed
+- Scans for source files based on the selected profile
 - Skips tests by default (`src/test`, `test`, `tests`, `*Test.java`)
 - Skips common build folders (`target`, `build`, `out`, `.git`)

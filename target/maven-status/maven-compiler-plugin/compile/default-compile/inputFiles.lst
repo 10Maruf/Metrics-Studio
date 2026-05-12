@@ -3,6 +3,7 @@ D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\analys
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\analysis\AstMetricsCalculator.java
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\analysis\CocomoBasic.java
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\analysis\ProjectAnalyzer.java
+D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\analysis\ProjectProfile.java
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\MainApp.java
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\scan\ProjectScanner.java
 D:\.Programming\Stat Hub Software Metrics\src\main\java\com\metricsstudio\text\TextMetrics.java

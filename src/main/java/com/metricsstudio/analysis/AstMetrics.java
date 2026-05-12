@@ -29,6 +29,25 @@ public final class AstMetrics {
 
     public final int parseFailureCount;
 
+    public static AstMetrics empty() {
+        return new AstMetrics(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0.0,
+                0L,
+                0L,
+                0,
+                0,
+                0L,
+                0L,
+                0,
+                0,
+                0);
+    }
+
     public AstMetrics(
             int packageCount,
             int subPackageCount,

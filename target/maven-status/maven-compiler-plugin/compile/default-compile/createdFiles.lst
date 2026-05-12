@@ -3,8 +3,10 @@ com\metricsstudio\analysis\CocomoBasic$Estimate.class
 com\metricsstudio\analysis\AstMetricsCalculator.class
 com\metricsstudio\text\TextMetricsCalculator.class
 com\metricsstudio\MainApp.class
+com\metricsstudio\analysis\ProjectProfile.class
 com\metricsstudio\scan\ProjectScanner.class
 com\metricsstudio\analysis\AstMetricsCalculator$HalsteadAccumulator.class
+com\metricsstudio\analysis\ProjectAnalyzer$1.class
 com\metricsstudio\analysis\ProjectAnalyzer.class
 com\metricsstudio\analysis\AstMetrics.class
 com\metricsstudio\analysis\CocomoBasic$Mode.class
@@ -12,3 +14,5 @@ com\metricsstudio\text\TextMetrics.class
 com\metricsstudio\analysis\AnalysisResult.class
 com\metricsstudio\MainApp$ResultTabs.class
 com\metricsstudio\analysis\CocomoBasic.class
+com\metricsstudio\text\TextMetricsCalculator$SingleQuoteMode.class
+com\metricsstudio\text\TextMetricsCalculator$CommentSyntax.class

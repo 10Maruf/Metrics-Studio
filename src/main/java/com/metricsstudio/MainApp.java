@@ -3,6 +3,7 @@ package com.metricsstudio;
 import com.metricsstudio.analysis.AnalysisResult;
 import com.metricsstudio.analysis.CocomoBasic;
 import com.metricsstudio.analysis.ProjectAnalyzer;
+import com.metricsstudio.analysis.ProjectProfile;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -235,6 +236,12 @@ public class MainApp extends Application {
         Label selectedFolderLabel = new Label("No folder selected");
         selectedFolderLabel.setWrapText(true);
 
+        Label profileLabel = new Label("Profile:");
+        ComboBox<ProjectProfile> profileBox = new ComboBox<>();
+        profileBox.getItems().addAll(ProjectProfile.values());
+        profileBox.getSelectionModel().select(ProjectProfile.JAVA);
+        profileBox.setMaxWidth(Double.MAX_VALUE);
+
         Button chooseFolderButton = new Button("Select Project Folder");
         Button analyzeButton = new Button("Analyze");
         analyzeButton.setDisable(true);
@@ -245,8 +252,9 @@ public class MainApp extends Application {
 
         ResultTabs resultTabs = new ResultTabs();
 
-        HBox topRow = new HBox(10, chooseFolderButton, analyzeButton, progress);
+        HBox topRow = new HBox(10, profileLabel, profileBox, chooseFolderButton, analyzeButton, progress);
         topRow.setPadding(new Insets(10));
+        HBox.setHgrow(profileBox, Priority.ALWAYS);
 
         VBox root = new VBox(8,
                 topRow,
@@ -261,7 +269,8 @@ public class MainApp extends Application {
 
         chooseFolderButton.setOnAction(evt -> {
             DirectoryChooser chooser = new DirectoryChooser();
-            chooser.setTitle("Select Java Project Folder");
+            ProjectProfile profile = profileBox.getValue() == null ? ProjectProfile.JAVA : profileBox.getValue();
+            chooser.setTitle("Select Project Folder (" + profile.displayName + ")");
             File folder = chooser.showDialog(primaryStage);
             if (folder == null)
                 return;
@@ -277,6 +286,8 @@ public class MainApp extends Application {
             if (rootPath == null)
                 return;
 
+            ProjectProfile profile = profileBox.getValue() == null ? ProjectProfile.JAVA : profileBox.getValue();
+
             analyzeButton.setDisable(true);
             chooseFolderButton.setDisable(true);
             progress.setVisible(true);
@@ -286,7 +297,7 @@ public class MainApp extends Application {
             Thread worker = new Thread(() -> {
                 try {
                     ProjectAnalyzer analyzer = new ProjectAnalyzer();
-                    AnalysisResult result = analyzer.analyze(rootPath);
+                    AnalysisResult result = analyzer.analyze(rootPath, profile);
 
                     Platform.runLater(() -> {
                         resultTabs.setResult(result);
